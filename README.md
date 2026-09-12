@@ -10,10 +10,13 @@ wanted to keep. `ansiconv` converts one direction to `<span>`-based HTML
 and back, so a terminal recording can go through a browser and come back
 out looking the same.
 
-It only understands "standard" SGR codes: reset, bold/italic/underline
-on and off, and the 16 named foreground/background colours (including
-bright variants). 256-colour and truecolor codes aren't modeled yet
-(see Roadmap in the repo).
+It understands reset, bold/italic/underline on and off, the 16 named
+foreground/background colours (including bright variants), the 256-colour
+palette (`\x1b[38;5;n`/`\x1b[48;5;n`), and 24-bit truecolor
+(`\x1b[38;2;r;g;b`/`\x1b[48;2;r;g;b`). Named and 256-colour codes turn into
+CSS classes; truecolor turns into an inline `style` attribute since there's
+no finite class to hand it. Codes outside that set (blink, strikethrough,
+cursor movement, ...) aren't modeled (see Roadmap in the repo).
 
 ## Strict vs. lenient
 
@@ -24,8 +27,8 @@ failure — you want to know your input had something you didn't expect.
 
 Pass `--lenient` to instead skip anything unrecognized and keep going.
 Reach for it when you're converting output you don't control, such as a
-log file with cursor-movement or 256-colour codes mixed in, and you'd
-rather lose that formatting than lose the whole run.
+log file with cursor-movement codes or blink/strikethrough mixed in, and
+you'd rather lose that formatting than lose the whole run.
 
 ## Usage
 
@@ -55,9 +58,9 @@ from ansiconv import ansi_to_html, html_to_ansi, ConversionError
 
 html = ansi_to_html("\x1b[32mok\x1b[0m")
 try:
-    ansi_to_html("\x1b[38;5;208mtruecolor\x1b[0m")
+    ansi_to_html("\x1b[5mblink\x1b[0m")
 except ConversionError:
-    ...  # 256-colour codes aren't supported in strict mode yet
+    ...  # blink isn't modeled, so strict mode rejects it
 ```
 
 ## Status

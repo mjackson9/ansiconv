@@ -37,6 +37,40 @@ def test_lenient_drops_unsupported_sgr_code():
     assert ansi_to_html("\x1b[5mblink\x1b[0m", lenient=True) == "blink"
 
 
+def test_256_color_foreground_and_background():
+    result = ansi_to_html("\x1b[38;5;208;48;5;17mtext\x1b[0m")
+    assert result == '<span class="ansi-fg-256-208 ansi-bg-256-17">text</span>'
+
+
+def test_truecolor_foreground_uses_inline_style():
+    result = ansi_to_html("\x1b[38;2;255;100;0mtext\x1b[0m")
+    assert result == '<span style="color:#ff6400">text</span>'
+
+
+def test_truecolor_background_uses_inline_style():
+    result = ansi_to_html("\x1b[48;2;10;20;30mtext\x1b[0m")
+    assert result == '<span style="background-color:#0a141e">text</span>'
+
+
+def test_bold_with_truecolor_combines_class_and_style():
+    result = ansi_to_html("\x1b[1;38;2;255;0;0mtext\x1b[0m")
+    assert result == '<span class="ansi-bold" style="color:#ff0000">text</span>'
+
+
+def test_strict_rejects_truncated_256_color_sequence():
+    with pytest.raises(ConversionError):
+        ansi_to_html("\x1b[38;5mtext\x1b[0m")
+
+
+def test_lenient_drops_truncated_256_color_sequence():
+    assert ansi_to_html("\x1b[38;5mtext\x1b[0m", lenient=True) == "text"
+
+
+def test_strict_rejects_out_of_range_truecolor_component():
+    with pytest.raises(ConversionError):
+        ansi_to_html("\x1b[38;2;999;0;0mtext\x1b[0m")
+
+
 def test_strict_rejects_cursor_movement_sequence():
     with pytest.raises(ConversionError):
         ansi_to_html("\x1b[2Jcleared")
@@ -73,6 +107,26 @@ def test_html_to_ansi_lenient_ignores_unknown_class():
     assert ansi_to_html(result) == "x"
 
 
+def test_html_to_ansi_256_color_class():
+    result = html_to_ansi('<span class="ansi-fg-256-208">x</span>')
+    assert result == "\x1b[0;38;5;208mx\x1b[0m"
+
+
+def test_html_to_ansi_truecolor_style():
+    result = html_to_ansi('<span style="color:#ff6400">x</span>')
+    assert result == "\x1b[0;38;2;255;100;0mx\x1b[0m"
+
+
+def test_html_to_ansi_strict_rejects_unrecognized_style():
+    with pytest.raises(ConversionError):
+        html_to_ansi('<span style="font-weight:bold">x</span>')
+
+
+def test_html_to_ansi_lenient_ignores_unrecognized_style():
+    result = html_to_ansi('<span style="font-weight:bold">x</span>', lenient=True)
+    assert ansi_to_html(result) == "x"
+
+
 def test_html_to_ansi_strict_rejects_unmatched_closing_tag():
     with pytest.raises(ConversionError):
         html_to_ansi("</span>text")
@@ -101,6 +155,8 @@ ROUND_TRIP_SAMPLES = [
     "plain text with & < > chars",
     "\x1b[35;46mtext\x1b[0m more \x1b[93mtext2\x1b[0m",
     "\x1b[1mBold \x1b[31mBoldRed\x1b[22mRedOnly\x1b[0mplain",
+    "\x1b[38;5;208mtangerine\x1b[0m",
+    "\x1b[1;38;2;255;100;0;48;5;17mmixed\x1b[0m",
 ]
 
 
