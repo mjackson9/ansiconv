@@ -18,6 +18,14 @@ CSS classes; truecolor turns into an inline `style` attribute since there's
 no finite class to hand it. Codes outside that set (blink, strikethrough,
 cursor movement, ...) aren't modeled (see Roadmap in the repo).
 
+Newlines in the input become `<br>` tags in the output (`<br />` with
+`--self-closing-br`), and the reverse conversion turns `<br>`/`<br />` back
+into `\n`, so a round trip through both directions preserves line breaks.
+
+The `ansi-` prefix on generated class names (`ansi-bold`, `ansi-fg-red`, ...)
+can be changed with `--class-prefix`/`class_prefix=`, which is read the same
+way on the way back so `to-ansi` still recognizes its own classes.
+
 ## Strict vs. lenient
 
 By default the converter is strict: any escape sequence or HTML tag it

@@ -40,6 +40,8 @@ _BG_EXTENDED = 48
 _FG_CODE_BY_NAME = {name: code for code, name in _FG_NAMED.items()}
 _BG_CODE_BY_NAME = {name: code for code, name in _BG_NAMED.items()}
 
+_DEFAULT_CLASS_PREFIX = "ansi-"
+
 # A full CSI SGR sequence, e.g. "\x1b[1;31m".
 _CSI_SGR = re.compile(r"\x1b\[([0-9;]*)m")
 # Any other escape sequence (CSI, OSC, or a bare two-byte escape) we might meet.
@@ -206,22 +208,22 @@ def _apply_sgr(state: _State, params: List[int], lenient: bool) -> None:
             i += 1
 
 
-def _classes_for(state: _State) -> List[str]:
+def _classes_for(state: _State, class_prefix: str) -> List[str]:
     classes = []
     if state.bold:
-        classes.append("ansi-bold")
+        classes.append(f"{class_prefix}bold")
     if state.italic:
-        classes.append("ansi-italic")
+        classes.append(f"{class_prefix}italic")
     if state.underline:
-        classes.append("ansi-underline")
+        classes.append(f"{class_prefix}underline")
     if state.fg:
         name = state.fg.class_name()
         if name:
-            classes.append(f"ansi-fg-{name}")
+            classes.append(f"{class_prefix}fg-{name}")
     if state.bg:
         name = state.bg.class_name()
         if name:
-            classes.append(f"ansi-bg-{name}")
+            classes.append(f"{class_prefix}bg-{name}")
     return classes
 
 
@@ -234,8 +236,20 @@ def _styles_for(state: _State) -> List[str]:
     return styles
 
 
-def ansi_to_html(text: str, *, lenient: bool = False) -> str:
-    """Convert a string containing ANSI SGR escapes into HTML <span> markup."""
+def ansi_to_html(
+    text: str,
+    *,
+    lenient: bool = False,
+    self_closing_br: bool = False,
+    class_prefix: str = _DEFAULT_CLASS_PREFIX,
+) -> str:
+    """Convert a string containing ANSI SGR escapes into HTML <span> markup.
+
+    Newlines become <br> tags (or <br /> if self_closing_br is set), mirroring
+    how html_to_ansi already turns <br> back into "\\n" - without this the two
+    functions wouldn't round-trip on multi-line input.
+    """
+    br_tag = "<br />" if self_closing_br else "<br>"
     out: List[str] = []
     state = _State()
     pos = 0
@@ -251,7 +265,7 @@ def ansi_to_html(text: str, *, lenient: bool = False) -> str:
             _apply_sgr(state, params, lenient)
             if not state.is_default():
                 attrs = []
-                classes = _classes_for(state)
+                classes = _classes_for(state, class_prefix)
                 if classes:
                     attrs.append(f'class="{" ".join(classes)}"')
                 styles = _styles_for(state)
@@ -271,7 +285,7 @@ def ansi_to_html(text: str, *, lenient: bool = False) -> str:
 
         nxt = text.find("\x1b", pos)
         end = nxt if nxt != -1 else len(text)
-        out.append(html_escape(text[pos:end]))
+        out.append(html_escape(text[pos:end]).replace("\n", br_tag))
         pos = end
 
     if open_span:
@@ -280,9 +294,10 @@ def ansi_to_html(text: str, *, lenient: bool = False) -> str:
 
 
 class _AnsiBuilder(HTMLParser):
-    def __init__(self, lenient: bool) -> None:
+    def __init__(self, lenient: bool, class_prefix: str) -> None:
         super().__init__(convert_charrefs=True)
         self.lenient = lenient
+        self.class_prefix = class_prefix
         self.out: List[str] = []
         self.stack: List[_State] = [_State()]
 
@@ -297,22 +312,25 @@ class _AnsiBuilder(HTMLParser):
 
         new_state = self.state.clone()
         attrs_dict = dict(attrs)
+        prefix = self.class_prefix
+        fg_prefix = f"{prefix}fg-"
+        bg_prefix = f"{prefix}bg-"
         if tag == "span":
             for cls in attrs_dict.get("class", "").split():
-                if cls == "ansi-bold":
+                if cls == f"{prefix}bold":
                     new_state.bold = True
-                elif cls == "ansi-italic":
+                elif cls == f"{prefix}italic":
                     new_state.italic = True
-                elif cls == "ansi-underline":
+                elif cls == f"{prefix}underline":
                     new_state.underline = True
-                elif cls.startswith("ansi-fg-"):
-                    color = _color_from_class(cls[8:])
+                elif cls.startswith(fg_prefix):
+                    color = _color_from_class(cls[len(fg_prefix):])
                     if color is not None:
                         new_state.fg = color
                     elif not self.lenient:
                         raise ConversionError(f"unrecognized span class: {cls!r}")
-                elif cls.startswith("ansi-bg-"):
-                    color = _color_from_class(cls[8:])
+                elif cls.startswith(bg_prefix):
+                    color = _color_from_class(cls[len(bg_prefix):])
                     if color is not None:
                         new_state.bg = color
                     elif not self.lenient:
@@ -372,9 +390,14 @@ class _AnsiBuilder(HTMLParser):
         self.out.append("\x1b[" + ";".join(str(c) for c in codes) + "m")
 
 
-def html_to_ansi(markup: str, *, lenient: bool = False) -> str:
+def html_to_ansi(
+    markup: str,
+    *,
+    lenient: bool = False,
+    class_prefix: str = _DEFAULT_CLASS_PREFIX,
+) -> str:
     """Convert HTML markup (as produced by ansi_to_html) back into ANSI escapes."""
-    builder = _AnsiBuilder(lenient)
+    builder = _AnsiBuilder(lenient, class_prefix)
     builder.feed(markup)
     builder.close()
     if len(builder.stack) != 1 and not lenient:

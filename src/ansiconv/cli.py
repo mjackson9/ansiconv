@@ -5,7 +5,7 @@ import argparse
 import sys
 from typing import List, Optional
 
-from .core import ConversionError, ansi_to_html, html_to_ansi
+from .core import _DEFAULT_CLASS_PREFIX, ConversionError, ansi_to_html, html_to_ansi
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,6 +36,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="skip unsupported escape sequences/tags instead of raising an error",
     )
+    parser.add_argument(
+        "--self-closing-br",
+        action="store_true",
+        help="emit <br /> instead of <br> for newlines (to-html only)",
+    )
+    parser.add_argument(
+        "--class-prefix",
+        default=_DEFAULT_CLASS_PREFIX,
+        help=f"prefix for generated/expected CSS class names (default: {_DEFAULT_CLASS_PREFIX!r})",
+    )
     return parser
 
 
@@ -44,9 +54,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
     text = args.input.read()
 
-    convert = ansi_to_html if args.direction == "to-html" else html_to_ansi
     try:
-        result = convert(text, lenient=args.lenient)
+        if args.direction == "to-html":
+            result = ansi_to_html(
+                text,
+                lenient=args.lenient,
+                self_closing_br=args.self_closing_br,
+                class_prefix=args.class_prefix,
+            )
+        else:
+            result = html_to_ansi(text, lenient=args.lenient, class_prefix=args.class_prefix)
     except ConversionError as exc:
         print(f"ansiconv: {exc} (use --lenient to ignore)", file=sys.stderr)
         return 1

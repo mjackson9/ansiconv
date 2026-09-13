@@ -80,6 +80,19 @@ def test_lenient_skips_cursor_movement_sequence():
     assert ansi_to_html("\x1b[2Jcleared", lenient=True) == "cleared"
 
 
+def test_newline_becomes_br():
+    assert ansi_to_html("line one\nline two") == "line one<br>line two"
+
+
+def test_self_closing_br_option():
+    assert ansi_to_html("a\nb", self_closing_br=True) == "a<br />b"
+
+
+def test_custom_class_prefix():
+    result = ansi_to_html("\x1b[1;31mERROR\x1b[0m", class_prefix="term-")
+    assert result == '<span class="term-bold term-fg-red">ERROR</span>'
+
+
 # --- html_to_ansi -------------------------------------------------------
 
 def test_html_to_ansi_basic_span():
@@ -172,3 +185,14 @@ def test_html_ansi_html_round_trip():
     html = '<span class="ansi-bold ansi-fg-red">ERROR</span>: build failed'
     ansi = html_to_ansi(html)
     assert ansi_to_html(ansi) == html
+
+
+def test_html_to_ansi_custom_class_prefix():
+    result = html_to_ansi('<span class="term-bold term-fg-red">x</span>', class_prefix="term-")
+    assert result == "\x1b[0;1;31mx\x1b[0m"
+
+
+def test_html_to_ansi_br_round_trips_with_newline():
+    ansi = html_to_ansi("line one<br>line two")
+    assert ansi == "line one\nline two"
+    assert ansi_to_html(ansi) == "line one<br>line two"
