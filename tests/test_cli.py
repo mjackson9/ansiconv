@@ -56,6 +56,17 @@ def test_class_prefix_flag(tmp_path):
     assert out.read_text() == '<span class="term-fg-red">red</span>\n'
 
 
+def test_to_plain_strips_styling(tmp_path):
+    src = tmp_path / "in.txt"
+    src.write_text("\x1b[1;31mERROR\x1b[0m: build failed")
+    out = tmp_path / "out.txt"
+
+    exit_code = main(["to-plain", str(src), "-o", str(out)])
+
+    assert exit_code == 0
+    assert out.read_text() == "ERROR: build failed\n"
+
+
 def test_to_ansi_round_trips_through_html(tmp_path):
     src = tmp_path / "in.html"
     src.write_text('<span class="ansi-bold ansi-fg-red">ERROR</span>: build failed')

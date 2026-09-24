@@ -59,10 +59,20 @@ $ python -m ansiconv.cli to-html build.log -o build.html      # strict: stops on
 $ python -m ansiconv.cli to-html build.log -o build.html --lenient   # best effort
 ```
 
+If you just want the text with all styling removed - piping a colourful log
+into something that doesn't care about colour, say - use `to-plain`. Unlike
+`to-html`, it doesn't care which SGR codes it sees, since they're all being
+thrown away anyway; it still respects strict/lenient for genuinely unknown
+escape sequences like cursor movement:
+
+```
+$ python -m ansiconv.cli to-plain build.log -o build.txt
+```
+
 As a library:
 
 ```python
-from ansiconv import ansi_to_html, html_to_ansi, ConversionError
+from ansiconv import ansi_to_html, ansi_to_plain, html_to_ansi, ConversionError
 
 html = ansi_to_html("\x1b[32mok\x1b[0m")
 try:

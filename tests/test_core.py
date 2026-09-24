@@ -1,6 +1,6 @@
 import pytest
 
-from ansiconv import ConversionError, ansi_to_html, html_to_ansi
+from ansiconv import ConversionError, ansi_to_html, ansi_to_plain, html_to_ansi
 
 
 # --- ansi_to_html -----------------------------------------------------
@@ -91,6 +91,34 @@ def test_self_closing_br_option():
 def test_custom_class_prefix():
     result = ansi_to_html("\x1b[1;31mERROR\x1b[0m", class_prefix="term-")
     assert result == '<span class="term-bold term-fg-red">ERROR</span>'
+
+
+# --- ansi_to_plain ------------------------------------------------------
+
+def test_plain_strips_sgr_codes():
+    assert ansi_to_plain("\x1b[1;31mERROR\x1b[0m: build failed") == "ERROR: build failed"
+
+
+def test_plain_leaves_unstyled_text_untouched():
+    assert ansi_to_plain("hello & <world>\nsecond line") == "hello & <world>\nsecond line"
+
+
+def test_plain_drops_any_sgr_code_even_ones_ansi_to_html_would_reject():
+    assert ansi_to_plain("\x1b[5mblink\x1b[0m") == "blink"
+
+
+def test_plain_strict_rejects_cursor_movement_sequence():
+    with pytest.raises(ConversionError):
+        ansi_to_plain("\x1b[2Jcleared")
+
+
+def test_plain_lenient_skips_cursor_movement_sequence():
+    assert ansi_to_plain("\x1b[2Jcleared", lenient=True) == "cleared"
+
+
+def test_plain_strips_256_and_truecolor_sgr():
+    result = ansi_to_plain("\x1b[38;5;208mtangerine\x1b[0m \x1b[1;38;2;255;0;0mred\x1b[0m")
+    assert result == "tangerine red"
 
 
 # --- html_to_ansi -------------------------------------------------------

@@ -293,6 +293,40 @@ def ansi_to_html(
     return "".join(out)
 
 
+def ansi_to_plain(text: str, *, lenient: bool = False) -> str:
+    """Strip ANSI escape sequences from text, leaving bare content behind.
+
+    Every SGR sequence is discarded regardless of which codes it carries,
+    since the whole point is to drop styling rather than reconstruct it -
+    unlike ansi_to_html, there's no unsupported-SGR-code error here. Other
+    escape sequences (cursor movement, OSC, ...) still follow the strict/
+    lenient split so a stray control sequence doesn't just vanish silently
+    unless you asked for that with --lenient.
+    """
+    out: List[str] = []
+    pos = 0
+
+    while pos < len(text):
+        m = _CSI_SGR.match(text, pos)
+        if m:
+            pos = m.end()
+            continue
+
+        m = _ANY_ESCAPE.match(text, pos)
+        if m:
+            if not lenient:
+                raise ConversionError(f"unsupported escape sequence: {m.group(0)!r}")
+            pos = m.end()
+            continue
+
+        nxt = text.find("\x1b", pos)
+        end = nxt if nxt != -1 else len(text)
+        out.append(text[pos:end])
+        pos = end
+
+    return "".join(out)
+
+
 class _AnsiBuilder(HTMLParser):
     def __init__(self, lenient: bool, class_prefix: str) -> None:
         super().__init__(convert_charrefs=True)

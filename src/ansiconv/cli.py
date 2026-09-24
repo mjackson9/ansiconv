@@ -5,7 +5,13 @@ import argparse
 import sys
 from typing import List, Optional
 
-from .core import _DEFAULT_CLASS_PREFIX, ConversionError, ansi_to_html, html_to_ansi
+from .core import (
+    _DEFAULT_CLASS_PREFIX,
+    ConversionError,
+    ansi_to_html,
+    ansi_to_plain,
+    html_to_ansi,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -15,8 +21,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "direction",
-        choices=["to-html", "to-ansi"],
-        help="to-html: ANSI text -> HTML. to-ansi: HTML -> ANSI text.",
+        choices=["to-html", "to-ansi", "to-plain"],
+        help=(
+            "to-html: ANSI text -> HTML. to-ansi: HTML -> ANSI text. "
+            "to-plain: ANSI text -> bare text with all styling stripped."
+        ),
     )
     parser.add_argument(
         "input",
@@ -62,8 +71,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                 self_closing_br=args.self_closing_br,
                 class_prefix=args.class_prefix,
             )
-        else:
+        elif args.direction == "to-ansi":
             result = html_to_ansi(text, lenient=args.lenient, class_prefix=args.class_prefix)
+        else:
+            result = ansi_to_plain(text, lenient=args.lenient)
     except ConversionError as exc:
         print(f"ansiconv: {exc} (use --lenient to ignore)", file=sys.stderr)
         return 1
